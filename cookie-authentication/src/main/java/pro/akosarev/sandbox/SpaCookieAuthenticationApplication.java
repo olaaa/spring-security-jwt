@@ -70,6 +70,7 @@ public class SpaCookieAuthenticationApplication {
             @Value("${jwt.cookie-token-key}") String cookieTokenKey,
             JdbcTemplate jdbcTemplate
     ) throws Exception {
+        // Configures deserializer and database access for token authentication
         return new TokenCookieAuthenticationConfigurer()
                 .tokenCookieStringDeserializer(new TokenCookieJweStringDeserializer(
                         new DirectDecrypter(
@@ -95,20 +96,21 @@ public class SpaCookieAuthenticationApplication {
      * @param tokenCookieAuthenticationConfigurer     конфигуратор аутентификации через куки
      * @param tokenCookieJweStringSerializer          сериализатор токена для стратегии аутентификации
      * @return настроенная цепочка фильтров
-     * @throws Exception если возникли ошибки при настройке
      */
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             TokenCookieAuthenticationConfigurer tokenCookieAuthenticationConfigurer,
-            TokenCookieJweStringSerializer tokenCookieJweStringSerializer) throws Exception {
+            TokenCookieJweStringSerializer tokenCookieJweStringSerializer) {
         var tokenCookieSessionAuthenticationStrategy = new TokenCookieSessionAuthenticationStrategy();
         tokenCookieSessionAuthenticationStrategy.setTokenStringSerializer(tokenCookieJweStringSerializer);
 
+        // Configures basic and form login; adds CSRF filter
         http.httpBasic(Customizer.withDefaults())
                 .formLogin(Customizer.withDefaults())
                 .addFilterAfter(new GetCsrfTokenFilter(), ExceptionTranslationFilter.class)
                 .authorizeHttpRequests(authorizeHttpRequests ->
+                        // Authorizes manager and default routes; requires authentication otherwise
                         authorizeHttpRequests
                                 .requestMatchers("/manager.html", "/manager").hasRole("MANAGER")
                                 .requestMatchers("/error", "index.html").permitAll()
@@ -134,6 +136,7 @@ public class SpaCookieAuthenticationApplication {
     @Bean
     public UserDetailsService userDetailsService(JdbcTemplate jdbcTemplate) {
         return username -> jdbcTemplate.query("select * from t_user where c_username = ?",
+                // Builds user details from database records
                 (rs, i) -> User.builder()
                         .username(rs.getString("c_username"))
                         .password(rs.getString("c_password"))

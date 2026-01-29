@@ -8,11 +8,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
-
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import java.io.IOException;
 
 /**
@@ -25,20 +24,11 @@ import java.io.IOException;
  */
 public class GetCsrfTokenFilter extends OncePerRequestFilter {
 
-    private RequestMatcher requestMatcher = new AntPathRequestMatcher("/csrf", HttpMethod.GET.name());
+    private final RequestMatcher requestMatcher = PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/csrf");
 
     private CsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 
-    private ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * Устанавливает сопоставитель запросов для фильтра.
-     *
-     * @param requestMatcher сопоставитель запросов
-     */
-    public void setRequestMatcher(RequestMatcher requestMatcher) {
-        this.requestMatcher = requestMatcher;
-    }
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Устанавливает репозиторий CSRF-токенов.
@@ -47,15 +37,6 @@ public class GetCsrfTokenFilter extends OncePerRequestFilter {
      */
     public void setCsrfTokenRepository(CsrfTokenRepository csrfTokenRepository) {
         this.csrfTokenRepository = csrfTokenRepository;
-    }
-
-    /**
-     * Устанавливает объект для сериализации ответа в JSON.
-     *
-     * @param objectMapper объект для работы с JSON
-     */
-    public void setObjectMapper(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -69,6 +50,7 @@ public class GetCsrfTokenFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        // Responds with CSRF token for matching requests
         if (this.requestMatcher.matches(request)) {
             response.setStatus(HttpServletResponse.SC_OK);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);

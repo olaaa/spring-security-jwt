@@ -43,6 +43,7 @@ public class TokenCookieSessionAuthenticationStrategy implements SessionAuthenti
     @Override
     public void onAuthentication(@NonNull Authentication authentication, @NonNull HttpServletRequest request,
                                  @NonNull HttpServletResponse response) throws SessionAuthenticationException {
+        // Creates, serializes, and adds token to `__Host-auth-token` cookie
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
             var token = this.tokenCookieFactory.apply(authentication);
             var tokenString = this.tokenStringSerializer.apply(token);

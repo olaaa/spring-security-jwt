@@ -41,12 +41,14 @@ public class TokenCookieAuthenticationConfigurer
      */
     @Override
     public void init(HttpSecurity builder) {
+        // Configures logout; clears cookie; persists token for deactivation
         builder.logout(logout -> logout.addLogoutHandler(
                         new CookieClearingLogoutHandler("__Host-auth-token"))
 
                 .addLogoutHandler((request, response, authentication) -> {
                     if (authentication != null &&
                         authentication.getPrincipal() instanceof TokenUser user) {
+                        // Persists token expiration for deactivation purposes
                         this.jdbcTemplate.update("INSERT INTO t_deactivated_token (id, c_keep_until) VALUES (?, ?)",
                                 user.getToken().id(), Date.from(user.getToken().expiresAt()));
 
@@ -63,21 +65,49 @@ public class TokenCookieAuthenticationConfigurer
      */
     @Override
     public void configure(HttpSecurity builder) {
+        // Создаём фильтр аутентификации. Это фильтр Spring Security, который:
+        // 1) вызывает AuthenticationConverter, чтобы получить Authentication из запроса,
+        // 2) передаёт этот Authentication в AuthenticationManager,
+        // 3) в зависимости от результата вызывает success/failure handler.
         var cookieAuthenticationFilter = new AuthenticationFilter(
+                // Берём AuthenticationManager из shared-объектов HttpSecurity.
+                // Это «движок» Spring Security, который прогоняет Authentication через подходящие AuthenticationProvider'ы.
                 builder.getSharedObject(AuthenticationManager.class),
-                new TokenCookieAuthenticationConverter(this.tokenCookieStringDeserializer));
+
+                // Передаём конвертер, который умеет извлекать токен из cookie и превращать его в Authentication.
+                // tokenCookieStringDeserializer — это функция, которая превращает строку токена (из cookie) в объект токена.
+                new TokenCookieAuthenticationConverter(this.tokenCookieStringDeserializer)
+        );
+
+        // Задаём обработчик успешной аутентификации.
+        // Здесь он пустой: т.е. при успехе не пишем ничего в response и просто продолжаем цепочку фильтров.
         cookieAuthenticationFilter.setSuccessHandler((request, response, authentication) -> {
         });
+
+        // Задаём обработчик неуспешной аутентификации (например, токен отсутствует/битый/просрочен/невалиден).
+        // AuthenticationEntryPointFailureHandler оборачивает EntryPoint и запускает его при ошибке.
         cookieAuthenticationFilter.setFailureHandler(
                 new AuthenticationEntryPointFailureHandler(
+                        // Http403ForbiddenEntryPoint отвечает клиенту статусом 403 Forbidden.
                         new Http403ForbiddenEntryPoint()
                 )
         );
 
+        // Создаём провайдер аутентификации для сценария "pre-auth".
+        // PreAuthenticatedAuthenticationProvider предназначен для случаев, когда «учётные данные»
+        // уже получены извне (например, из заголовка/сертификата/cookie), а провайдеру остаётся
+        // только загрузить пользователя и подтвердить его.
         var authenticationProvider = new PreAuthenticatedAuthenticationProvider();
-        authenticationProvider.setPreAuthenticatedUserDetailsService(
-                new TokenAuthenticationUserDetailsService(this.jdbcTemplate));
 
+        // Подключаем сервис, который по pre-auth токену возвращает UserDetails (пользователя и его authorities).
+        // Внутри обычно: проверка токена, проверка "не отозван ли", загрузка прав и т.п.
+        authenticationProvider.setPreAuthenticatedUserDetailsService(
+                new TokenAuthenticationUserDetailsService(this.jdbcTemplate)
+        );
+
+        // Регистрируем фильтр в цепочке фильтров Spring Security:
+        // addFilterAfter(..., CsrfFilter.class) означает "вставить cookieAuthenticationFilter сразу после CsrfFilter".
+        // Далее в этой же DSL-цепочке регистрируем созданный AuthenticationProvider.
         builder.addFilterAfter(cookieAuthenticationFilter, CsrfFilter.class)
                 .authenticationProvider(authenticationProvider);
     }

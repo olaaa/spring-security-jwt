@@ -35,6 +35,7 @@ public class TokenCookieAuthenticationConverter implements AuthenticationConvert
     @Override
     public Authentication convert(HttpServletRequest request) {
         if (request.getCookies() != null) {
+            // Filters cookies to find authentication token
             return Stream.of(request.getCookies())
                     .filter(cookie -> cookie.getName().equals("__Host-auth-token"))
                     .findFirst()

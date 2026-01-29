@@ -23,6 +23,7 @@ public class GreetingsRestController {
      */
     @GetMapping
     public ResponseEntity<Greeting> getGreeting(@AuthenticationPrincipal UserDetails user) {
+        // Responds with JSON greeting for authenticated user
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new Greeting("Hello, %s!".formatted(user.getUsername())));
