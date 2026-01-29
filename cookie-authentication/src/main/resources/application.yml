@@ -21,9 +21,9 @@ jwt:
   cookie-token-key: '{"kty":"oct","k":"956PBFst1FguLr5irJD-aQ"}'
 
 server:
+  port: 8443
   ssl:
     bundle: server           # ← имя бандла из предыдущего блока
-    port: 8443
 
 logging:
   level:

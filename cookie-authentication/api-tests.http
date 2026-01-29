@@ -1,0 +1,193 @@
+### === НАСТРОЙКИ ===
+### Базовый URL приложения
+@baseUrl = https://localhost:8443
+### Тестовый пользователь
+@username = j.jameson
+@password = password
+
+
+### ============================================
+### 1. Получение CSRF-токена (без аутентификации)
+### ============================================
+GET {{baseUrl}}/csrf
+
+> {%
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+
+    client.test("Response has CSRF token", function() {
+        var json = response.body;
+        client.assert(json.token !== undefined, "CSRF token is missing");
+        client.assert(json.parameterName !== undefined, "CSRF parameter name is missing");
+        client.assert(json.headerName !== undefined, "CSRF header name is missing");
+    });
+
+    // Сохраняем CSRF токен для последующих запросов
+    if (response.body.token) {
+        client.global.set("csrf_token", response.body.token);
+        client.global.set("csrf_param", response.body.parameterName);
+        client.global.set("csrf_header", response.body.headerName);
+        client.log("✓ CSRF токен сохранен: " + response.body.token);
+    }
+%}
+
+
+### ============================================
+### 2. Вход в систему (Basic Authentication)
+###    + Получение CSRF токена
+### ============================================
+GET {{baseUrl}}/csrf
+Authorization: Basic {{username}}:{{password}}
+
+> {%
+    client.test("Authentication successful", function() {
+        client.assert(response.status === 200, "Authentication failed");
+    });
+
+    client.test("Received auth cookie", function() {
+        var cookies = response.headers.valuesOf("Set-Cookie");
+        var hasAuthCookie = cookies.some(cookie => cookie.includes("__Host-auth-token"));
+        client.assert(hasAuthCookie, "Auth cookie not found in response");
+    });
+
+    // Сохраняем CSRF токен после аутентификации
+    if (response.body.token) {
+        client.global.set("csrf_token", response.body.token);
+        client.global.set("csrf_param", response.body.parameterName);
+        client.global.set("csrf_header", response.body.headerName);
+        client.log("✓ Вход выполнен, токены сохранены");
+    }
+%}
+
+
+### ============================================
+### 3. Вызов защищенного API (требует аутентификации)
+###    Возвращает приветствие для текущего пользователя
+### ============================================
+GET {{baseUrl}}/api/greetings
+
+> {%
+    client.test("API call successful", function() {
+        client.assert(response.status === 200, "API call failed");
+    });
+
+    client.test("Greeting received", function() {
+        var json = response.body;
+        client.assert(json.greeting !== undefined, "Greeting is missing");
+        client.assert(json.greeting.includes("Hello"), "Greeting format is incorrect");
+        client.log("✓ Получено приветствие: " + json.greeting);
+    });
+%}
+
+
+### ============================================
+### 4. Доступ к странице менеджера (требует роль ROLE_MANAGER)
+### ============================================
+GET {{baseUrl}}/manager
+
+> {%
+    client.test("Manager page accessible", function() {
+        client.assert(response.status === 200, "Access to manager page denied");
+    });
+%}
+
+
+### ============================================
+### 5. Выход из системы (требует CSRF токен)
+### ============================================
+POST {{baseUrl}}/logout?{{csrf_param}}={{csrf_token}}
+
+> {%
+    client.test("Logout successful", function() {
+        client.assert(response.status === 200 || response.status === 302, 
+            "Logout failed with status: " + response.status);
+    });
+
+    client.test("Auth cookie removed", function() {
+        var cookies = response.headers.valuesOf("Set-Cookie");
+        var cookieRemoved = cookies.some(cookie => 
+            cookie.includes("__Host-auth-token") && cookie.includes("Max-Age=0")
+        );
+        client.assert(cookieRemoved, "Auth cookie was not removed");
+    });
+
+    // Очищаем сохраненные токены
+    client.global.clear("csrf_token");
+    client.global.clear("csrf_param");
+    client.global.clear("csrf_header");
+    client.log("✓ Выход выполнен, токены очищены");
+%}
+
+
+### ============================================
+### === НЕГАТИВНЫЕ СЦЕНАРИИ ===
+### ============================================
+
+
+### ❌ Попытка доступа к API без аутентификации
+GET {{baseUrl}}/api/greetings
+
+> {%
+    client.test("Access denied without auth", function() {
+        client.assert(response.status === 401 || response.status === 302, 
+            "Expected 401 or redirect, got: " + response.status);
+    });
+%}
+
+
+### ❌ Вход с неверными учетными данными
+GET {{baseUrl}}/csrf
+Authorization: Basic wrong:credentials
+
+> {%
+    client.test("Authentication failed", function() {
+        client.assert(response.status === 401, "Expected 401, got: " + response.status);
+    });
+%}
+
+
+### ❌ Попытка выхода без CSRF токена
+POST {{baseUrl}}/logout
+
+> {%
+    client.test("CSRF protection works", function() {
+        client.assert(response.status === 403, 
+            "Expected 403 (CSRF), got: " + response.status);
+    });
+%}
+
+
+### ============================================
+### === ПОЛНЫЙ СЦЕНАРИЙ ТЕСТИРОВАНИЯ ===
+### Выполните все запросы последовательно:
+### 1. Получение CSRF (без auth) → 2. Вход → 
+### 3. API вызов → 4. Страница менеджера → 5. Выход
+### ============================================
+
+
+### ============================================
+### ДОПОЛНИТЕЛЬНО: Альтернативный способ передачи CSRF
+###               через заголовок вместо query параметра
+### ============================================
+POST {{baseUrl}}/logout
+X-CSRF-TOKEN: {{csrf_token}}
+
+> {%
+    client.test("Logout with header successful", function() {
+        client.assert(response.status === 200 || response.status === 302, 
+            "Logout failed");
+    });
+%}
+
+
+### ============================================
+### ПРОВЕРКА: Получение публичной страницы
+### ============================================
+GET {{baseUrl}}/index.html
+
+> {%
+    client.test("Public page accessible", function() {
+        client.assert(response.status === 200, "Public page not accessible");
+    });
+%}
