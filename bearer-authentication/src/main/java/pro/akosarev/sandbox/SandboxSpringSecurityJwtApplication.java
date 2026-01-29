@@ -53,7 +53,7 @@ public class SandboxSpringSecurityJwtApplication {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtAuthenticationConfigurer jwtAuthenticationConfigurer) throws Exception {
-        http.apply(jwtAuthenticationConfigurer);
+        http.with(jwtAuthenticationConfigurer, Customizer.withDefaults());
 
         return http
                 .httpBasic(Customizer.withDefaults())
