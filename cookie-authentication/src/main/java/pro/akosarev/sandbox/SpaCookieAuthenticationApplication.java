@@ -3,16 +3,19 @@ package pro.akosarev.sandbox;
 import com.nimbusds.jose.crypto.DirectDecrypter;
 import com.nimbusds.jose.crypto.DirectEncrypter;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
@@ -92,9 +95,9 @@ public class SpaCookieAuthenticationApplication {
      *     <li>Настраивается защита от CSRF с использованием кук, доступных для чтения фронтендом.</li>
      * </ul>
      *
-     * @param http                                    объект для настройки HTTP-безопасности
-     * @param tokenCookieAuthenticationConfigurer     конфигуратор аутентификации через куки
-     * @param tokenCookieJweStringSerializer          сериализатор токена для стратегии аутентификации
+     * @param http                                объект для настройки HTTP-безопасности
+     * @param tokenCookieAuthenticationConfigurer конфигуратор аутентификации через куки
+     * @param tokenCookieJweStringSerializer      сериализатор токена для стратегии аутентификации
      * @return настроенная цепочка фильтров
      */
     @Bean
@@ -113,14 +116,15 @@ public class SpaCookieAuthenticationApplication {
                         // Authorizes manager and default routes; requires authentication otherwise
                         authorizeHttpRequests
                                 .requestMatchers("/manager.html", "/manager").hasRole("MANAGER")
-                                .requestMatchers("/error", "index.html").permitAll()
+                                .requestMatchers("/error", "/index.html").permitAll()
                                 .anyRequest().authenticated())
                 .sessionManagement(sessionManagement -> sessionManagement
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                         .sessionAuthenticationStrategy(tokenCookieSessionAuthenticationStrategy))
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .sessionAuthenticationStrategy((authentication, request, response) -> {}));
+                        .sessionAuthenticationStrategy((authentication, request, response) -> {
+                        }));
 
         http.with(tokenCookieAuthenticationConfigurer, Customizer.withDefaults());
 
@@ -135,16 +139,24 @@ public class SpaCookieAuthenticationApplication {
      */
     @Bean
     public UserDetailsService userDetailsService(JdbcTemplate jdbcTemplate) {
-        return username -> jdbcTemplate.query("select * from t_user where c_username = ?",
-                // Builds user details from database records
-                (rs, i) -> User.builder()
-                        .username(rs.getString("c_username"))
-                        .password(rs.getString("c_password"))
-                        .authorities(
-                                jdbcTemplate.query("select c_authority from t_user_authority where id_user = ?",
-                                        (rs1, i1) ->
-                                                new SimpleGrantedAuthority(rs1.getString("c_authority")),
-                                        rs.getInt("id")))
-                        .build(), username).stream().findFirst().orElse(null);
+        return username -> jdbcTemplate.query("SELECT * FROM t_user WHERE c_username = ?",
+                        // Builds user details from database records
+                        getUserDetailsRowMapper(jdbcTemplate),
+                        username)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static @NonNull RowMapper<UserDetails> getUserDetailsRowMapper(JdbcTemplate jdbcTemplate) {
+        return (rs, i) -> User.builder()
+                .username(rs.getString("c_username"))
+                .password(rs.getString("c_password"))
+                .authorities(
+                        jdbcTemplate.query("SELECT c_authority FROM t_user_authority WHERE id_user = ?",
+                                (rs1, i1) ->
+                                        new SimpleGrantedAuthority(rs1.getString("c_authority")),
+                                rs.getInt("id")))
+                .build();
     }
 }
