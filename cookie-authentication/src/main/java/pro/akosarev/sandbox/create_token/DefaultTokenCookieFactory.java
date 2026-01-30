@@ -10,7 +10,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 /**
- * Реализация фабрики токенов по умолчанию.
+ * Генерируем токен
  * Создает объект {@link Token} на основе данных аутентифицированного пользователя.
  */
 public class DefaultTokenCookieFactory implements Function<Authentication, Token> {

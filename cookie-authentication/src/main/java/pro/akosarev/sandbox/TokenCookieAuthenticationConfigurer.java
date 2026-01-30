@@ -11,13 +11,15 @@ import org.springframework.security.web.authentication.Http403ForbiddenEntryPoin
 import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
 import org.springframework.security.web.csrf.CsrfFilter;
-import pro.akosarev.sandbox.create_token.TokenCookieAuthenticationConverter;
+import pro.akosarev.sandbox.read_token.TokenCookieAuthenticationConverter;
 
 import java.util.Date;
 import java.util.function.Function;
 
 /**
  * Конфигуратор для настройки аутентификации на основе кук с токенами.
+ *
+ * Аналогично модулю bearer-authentication
  *
  * <p>Этот класс объединяет разрозненные компоненты в единый механизм:</p>
  * <ul>
@@ -42,14 +44,15 @@ public class TokenCookieAuthenticationConfigurer
     @Override
     public void init(HttpSecurity builder) {
         // Configures logout; clears cookie; persists token for deactivation
-        builder.logout(logout -> logout.addLogoutHandler(
+        builder.logout(logout -> logout
+                .addLogoutHandler(
                         new CookieClearingLogoutHandler("__Host-auth-token"))
-
+// блокируем id токена. Скопировано из логаут фильтра модуля bearer-authentication
                 .addLogoutHandler((request, response, authentication) -> {
                     if (authentication != null &&
                         authentication.getPrincipal() instanceof TokenUser user) {
                         // Persists token expiration for deactivation purposes
-                        this.jdbcTemplate.update("INSERT INTO t_deactivated_token (id, c_keep_until) VALUES (?, ?)",
+                        jdbcTemplate.update("INSERT INTO t_deactivated_token (id, c_keep_until) VALUES (?, ?)",
                                 user.getToken().id(), Date.from(user.getToken().expiresAt()));
 
                         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
@@ -74,9 +77,8 @@ public class TokenCookieAuthenticationConfigurer
                 // Это «движок» Spring Security, который прогоняет Authentication через подходящие AuthenticationProvider'ы.
                 builder.getSharedObject(AuthenticationManager.class),
 
-                // Передаём конвертер, который умеет извлекать токен из cookie и превращать его в Authentication.
-                // tokenCookieStringDeserializer — это функция, которая превращает строку токена (из cookie) в объект токена.
-                new TokenCookieAuthenticationConverter(this.tokenCookieStringDeserializer)
+                // Наша реализация интерфейса org.springframework.security.web.authentication.AuthenticationConverter
+                new TokenCookieAuthenticationConverter(tokenCookieStringDeserializer)
         );
 
         // Задаём обработчик успешной аутентификации.
@@ -102,7 +104,8 @@ public class TokenCookieAuthenticationConfigurer
         // Подключаем сервис, который по pre-auth токену возвращает UserDetails (пользователя и его authorities).
         // Внутри обычно: проверка токена, проверка "не отозван ли", загрузка прав и т.п.
         authenticationProvider.setPreAuthenticatedUserDetailsService(
-                new TokenAuthenticationUserDetailsService(this.jdbcTemplate)
+//  класс   из shared модуля
+                new TokenAuthenticationUserDetailsService(jdbcTemplate)
         );
 
         // Регистрируем фильтр в цепочке фильтров Spring Security:

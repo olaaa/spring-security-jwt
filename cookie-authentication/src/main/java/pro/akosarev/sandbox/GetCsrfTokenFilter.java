@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 
 /**
- * Фильтр для предоставления CSRF-токена клиенту.
+ * Фильтр для предоставления CSRF-токена клиенту в виде JSON.
  * Обновлён для Spring Security 7.0 с улучшенной обработкой CSRF токенов
  */
 public class GetCsrfTokenFilter extends OncePerRequestFilter {

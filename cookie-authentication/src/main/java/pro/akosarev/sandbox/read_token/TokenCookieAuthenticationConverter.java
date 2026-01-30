@@ -1,4 +1,4 @@
-package pro.akosarev.sandbox.create_token;
+package pro.akosarev.sandbox.read_token;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
@@ -27,7 +27,7 @@ public class TokenCookieAuthenticationConverter implements AuthenticationConvert
     }
 
     /**
-     * Преобразует HTTP-запрос в объект аутентификации.
+     * Преобразует HTTP-запрос в объект аутентификации на основе куки с именем __Host-auth-token
      *
      * @param request HTTP-запрос
      * @return объект аутентификации или null, если кука не найдена
@@ -40,7 +40,8 @@ public class TokenCookieAuthenticationConverter implements AuthenticationConvert
                     .filter(cookie -> cookie.getName().equals("__Host-auth-token"))
                     .findFirst()
                     .map(cookie -> {
-                        var token = this.tokenCookieStringDeserializer.apply(cookie.getValue());
+                        var token = tokenCookieStringDeserializer.apply(cookie.getValue());
+//  пояснение в bearer аутентификации
                         return new PreAuthenticatedAuthenticationToken(token, cookie.getValue());
                     })
                     .orElse(null);

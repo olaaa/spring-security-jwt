@@ -49,7 +49,9 @@ Authorization: Basic {{username}} {{password}}
         var cookies = response.headers.valuesOf("Set-Cookie");
         var hasAuthCookie = cookies.some(cookie => cookie.includes("__Host-auth-token"));
         client.assert(hasAuthCookie, "Auth cookie not found in response");
-        
+        var hasXsrfToken= cookies.some(cookie => cookie.includes("XSRF-TOKEN"));
+        client.assert(hasXsrfToken, "XSRF-TOKEN not found in response");
+
         // Сохраняем куку
         if (hasAuthCookie) {
             var authCookie = cookies.find(cookie => cookie.includes("__Host-auth-token"));

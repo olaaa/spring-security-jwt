@@ -37,6 +37,7 @@ public class SpaCookieAuthenticationApplication {
         SpringApplication.run(SpaCookieAuthenticationApplication.class, args);
     }
 
+//    то же самое, что было в рефреш токен
     @Bean
     public TokenCookieJweStringSerializer tokenCookieJweStringSerializer(
             @Value("${jwt.cookie-token-key}") String cookieTokenKey
@@ -46,6 +47,7 @@ public class SpaCookieAuthenticationApplication {
         ));
     }
 
+//    перегруженное создание бина. Это все можно сделать через спринг аутовайред
     @Bean
     public TokenCookieAuthenticationConfigurer tokenCookieAuthenticationConfigurer(
             @Value("${jwt.cookie-token-key}") String cookieTokenKey,
@@ -94,14 +96,19 @@ public class SpaCookieAuthenticationApplication {
 
                 // Управление сессиями с Lambda DSL
                 .sessionManagement(session -> session
+//                        отключаем сессии
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+//  устанавливаем нашу стратегию
                         .sessionAuthenticationStrategy(tokenCookieSessionAuthenticationStrategy)
                 )
 
                 // CSRF конфигурация с Lambda DSL
                 .csrf(csrf -> csrf
+//  spring security по умолчанию использует http сессии, поэтому нужно поменять на CookieCsrfTokenRepository
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+// handler, который не обфусцирует csrf-токен. По умолчанию используется XorCsrfTokenRequestAttributeHandler
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+// для того, чтобы цсрф-токен не обновлялся каждый раз, когда проходим аутентификацию
                         .sessionAuthenticationStrategy((authentication, request, response) -> {
                         })
                 )

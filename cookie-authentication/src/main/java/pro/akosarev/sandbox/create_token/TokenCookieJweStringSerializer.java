@@ -16,6 +16,8 @@ import java.util.function.Function;
  * <p>Этот класс превращает Java-объект токена в компактную зашифрованную строку, которую
  * можно безопасно передать клиенту через куки. Используется стандарт JWE (JSON Web Encryption),
  * что гарантирует конфиденциальность данных: никто, кроме сервера, не может прочитать содержимое токена.</p>
+ *
+ * Код скопироывн из bearer-authentication/src/main/java/pro/akosarev/sandbox/RefreshTokenJweStringSerializer.java
  */
 public class TokenCookieJweStringSerializer implements Function<Token, String> {
 
