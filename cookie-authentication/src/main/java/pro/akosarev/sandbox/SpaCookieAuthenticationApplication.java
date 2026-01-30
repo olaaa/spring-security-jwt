@@ -76,7 +76,7 @@ public class SpaCookieAuthenticationApplication {
         tokenCookieSessionAuthenticationStrategy.setTokenStringSerializer(tokenCookieJweStringSerializer);
 
         return http
-                // Basic и Form login с Lambda DSL
+                // пояснение в ридми файле
                 .httpBasic(Customizer.withDefaults())
                 .formLogin(Customizer.withDefaults())
 
