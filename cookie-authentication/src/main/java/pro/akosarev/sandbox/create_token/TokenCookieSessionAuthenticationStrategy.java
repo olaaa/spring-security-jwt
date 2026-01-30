@@ -3,76 +3,55 @@ package pro.akosarev.sandbox.create_token;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.jspecify.annotations.NonNull;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.session.SessionAuthenticationException;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import pro.akosarev.sandbox.Token;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.function.Function;
 
+import pro.akosarev.sandbox.Token;
+
 /**
- * Стратегия аутентификации сессии через куки с токенами.
- *
- * <p>Эта стратегия срабатывает один раз — сразу после того, как пользователь успешно ввел логин и пароль.
- * Вместо создания обычной серверной сессии (JSESSIONID), она генерирует защищенный токен,
- * превращает его в зашифрованную JWE-строку и устанавливает эту строку в куку браузера.</p>
- *
- * <p>Параметры куки настроены максимально строго (HttpOnly, Secure, __Host-), чтобы защитить
- * пользователя от кражи его данных через скрипты или незащищенные каналы связи.</p>
+ * Стратегия аутентификации сессий на основе кук с токенами.
+ * Обновлена для Spring Security 7.0 с улучшенной безопасностью кук
  */
 public class TokenCookieSessionAuthenticationStrategy implements SessionAuthenticationStrategy {
 
     private Function<Authentication, Token> tokenCookieFactory = new DefaultTokenCookieFactory();
+    private Function<Token, String> tokenStringSerializer = Object::toString;
 
-    private Function<Token, String> tokenStringSerializer = Objects::toString;
-
-    /**
-     * Выполняется при успешной аутентификации.
-     * Создает токен, сериализует его и добавляет в куку {@code __Host-auth-token}.
-     *
-     * @param authentication объект аутентификации
-     * @param request        HTTP-запрос
-     * @param response       HTTP-ответ
-     * @throws SessionAuthenticationException в случае ошибки аутентификации сессии
-     */
     @Override
-    public void onAuthentication(@NonNull Authentication authentication, @NonNull HttpServletRequest request,
-                                 @NonNull HttpServletResponse response) throws SessionAuthenticationException {
-        // Creates, serializes, and adds token to `__Host-auth-token` cookie
+    public void onAuthentication(@NonNull Authentication authentication, 
+                                @NonNull HttpServletRequest request,
+                                @NonNull HttpServletResponse response) throws SessionAuthenticationException {
+        
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
             var token = this.tokenCookieFactory.apply(authentication);
             var tokenString = this.tokenStringSerializer.apply(token);
 
+            // Создаём защищённую куку с улучшенными параметрами безопасности
             var cookie = new Cookie("__Host-auth-token", tokenString);
             cookie.setPath("/");
             cookie.setDomain(null);
             cookie.setSecure(true);
             cookie.setHttpOnly(true);
             cookie.setMaxAge((int) ChronoUnit.SECONDS.between(Instant.now(), token.expiresAt()));
+            
+            // Добавляем SameSite атрибут для защиты от CSRF
+            cookie.setAttribute("SameSite", "Strict");
 
             response.addCookie(cookie);
         }
     }
 
-    /**
-     * Устанавливает фабрику для создания токенов.
-     *
-     * @param tokenCookieFactory фабрика токенов
-     */
     public void setTokenCookieFactory(Function<Authentication, Token> tokenCookieFactory) {
         this.tokenCookieFactory = tokenCookieFactory;
     }
 
-    /**
-     * Устанавливает сериализатор токена в строку.
-     *
-     * @param tokenStringSerializer сериализатор токена
-     */
     public void setTokenStringSerializer(Function<Token, String> tokenStringSerializer) {
         this.tokenStringSerializer = tokenStringSerializer;
     }

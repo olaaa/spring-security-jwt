@@ -38,7 +38,7 @@ GET {{baseUrl}}/csrf
 ###    + Получение CSRF токена
 ### ============================================
 GET {{baseUrl}}/csrf
-Authorization: Basic {{username}}:{{password}}
+Authorization: Basic {{username}} {{password}}
 
 > {%
     client.test("Authentication successful", function() {
@@ -49,6 +49,14 @@ Authorization: Basic {{username}}:{{password}}
         var cookies = response.headers.valuesOf("Set-Cookie");
         var hasAuthCookie = cookies.some(cookie => cookie.includes("__Host-auth-token"));
         client.assert(hasAuthCookie, "Auth cookie not found in response");
+        
+        // Сохраняем куку
+        if (hasAuthCookie) {
+            var authCookie = cookies.find(cookie => cookie.includes("__Host-auth-token"));
+            var cookieValue = authCookie.split(";")[0].split("=")[1];
+            client.global.set("auth_token", cookieValue);
+            client.log("✓ Auth токен сохранен");
+        }
     });
 
     // Сохраняем CSRF токен после аутентификации
@@ -66,6 +74,7 @@ Authorization: Basic {{username}}:{{password}}
 ###    Возвращает приветствие для текущего пользователя
 ### ============================================
 GET {{baseUrl}}/api/greetings
+Cookie: __Host-auth-token={{auth_token}}
 
 > {%
     client.test("API call successful", function() {
@@ -80,11 +89,11 @@ GET {{baseUrl}}/api/greetings
     });
 %}
 
-
 ### ============================================
 ### 4. Доступ к странице менеджера (требует роль ROLE_MANAGER)
 ### ============================================
 GET {{baseUrl}}/manager
+Cookie: __Host-auth-token={{auth_token}}
 
 > {%
     client.test("Manager page accessible", function() {
@@ -92,11 +101,11 @@ GET {{baseUrl}}/manager
     });
 %}
 
-
 ### ============================================
 ### 5. Выход из системы (требует CSRF токен)
 ### ============================================
-POST {{baseUrl}}/logout?{{csrf_param}}={{csrf_token}}
+POST {{baseUrl}}/logout
+Cookie: __Host-auth-token={{auth_token}}
 
 > {%
     client.test("Logout successful", function() {
@@ -116,14 +125,13 @@ POST {{baseUrl}}/logout?{{csrf_param}}={{csrf_token}}
     client.global.clear("csrf_token");
     client.global.clear("csrf_param");
     client.global.clear("csrf_header");
+    client.global.clear("auth_token");
     client.log("✓ Выход выполнен, токены очищены");
 %}
-
 
 ### ============================================
 ### === НЕГАТИВНЫЕ СЦЕНАРИИ ===
 ### ============================================
-
 
 ### ❌ Попытка доступа к API без аутентификации
 GET {{baseUrl}}/api/greetings
@@ -135,10 +143,9 @@ GET {{baseUrl}}/api/greetings
     });
 %}
 
-
 ### ❌ Вход с неверными учетными данными
 GET {{baseUrl}}/csrf
-Authorization: Basic wrong:credentials
+Authorization: Basic wrong credentials
 
 > {%
     client.test("Authentication failed", function() {
@@ -146,9 +153,9 @@ Authorization: Basic wrong:credentials
     });
 %}
 
-
 ### ❌ Попытка выхода без CSRF токена
 POST {{baseUrl}}/logout
+Cookie: __Host-auth-token={{auth_token}}
 
 > {%
     client.test("CSRF protection works", function() {
@@ -157,21 +164,13 @@ POST {{baseUrl}}/logout
     });
 %}
 
-
-### ============================================
-### === ПОЛНЫЙ СЦЕНАРИЙ ТЕСТИРОВАНИЯ ===
-### Выполните все запросы последовательно:
-### 1. Получение CSRF (без auth) → 2. Вход → 
-### 3. API вызов → 4. Страница менеджера → 5. Выход
-### ============================================
-
-
 ### ============================================
 ### ДОПОЛНИТЕЛЬНО: Альтернативный способ передачи CSRF
 ###               через заголовок вместо query параметра
 ### ============================================
 POST {{baseUrl}}/logout
-X-CSRF-TOKEN: {{csrf_token}}
+Cookie: __Host-auth-token={{auth_token}}
+X-XSRF-TOKEN: {{csrf_token}}
 
 > {%
     client.test("Logout with header successful", function() {
@@ -179,7 +178,6 @@ X-CSRF-TOKEN: {{csrf_token}}
             "Logout failed");
     });
 %}
-
 
 ### ============================================
 ### ПРОВЕРКА: Получение публичной страницы
