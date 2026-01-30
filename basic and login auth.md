@@ -2,12 +2,15 @@
 
 ## 1. Form Login - Запрос через форму
 
+## Тестирование:
+открываем https://localhost:8443/login
+
 ### GET `/login` - Получение формы входа
 ```
 GET https://localhost:8443/login
 Accept: text/html
 ```
-
+В заголовке ответа `Set-Cookie: XSRF-TOKEN=c261d6b0-996d-4bd8-baba-1167d2beeefc; Path=/; Secure`
 
 **Ответ:** HTML-страница с формой входа
 ```html
@@ -32,7 +35,7 @@ Accept: text/html
 ```
 POST https://localhost:8443/login
 Content-Type: application/x-www-form-urlencoded
-Cookie: XSRF-TOKEN=abc123...
+Cookie: XSRF-TOKEN=3bff3a74-c7a7-44e7-98e1-d138fd37511b
 
 username=j.jameson&password=password&_csrf=abc123...
 ```
@@ -43,7 +46,6 @@ username=j.jameson&password=password&_csrf=abc123...
 HTTP/1.1 302 Found
 Location: /
 Set-Cookie: __Host-auth-token=eyJ...; HttpOnly; Secure; SameSite=Strict
-Set-Cookie: XSRF-TOKEN=xyz789...; Secure; SameSite=Strict
 ```
 
 

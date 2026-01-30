@@ -78,6 +78,7 @@ public class SpaCookieAuthenticationApplication {
         return http
                 // пояснение в ридми файле
                 .httpBasic(Customizer.withDefaults())
+//                не работает логаут из index! НО работает из manager
                 .formLogin(Customizer.withDefaults())
 
                 // Добавляем фильтр для CSRF
