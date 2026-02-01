@@ -3,6 +3,18 @@ spring:
     compose:
       stop:
         command: down
+  ssl:
+    bundle:
+      jks: # ← для PKCS12 / JKS используем jks-группу
+        server: # ← имя бандла (можно любое, но часто берут "server")
+          key:
+            alias: localhost   # ← должен совпадать с -alias в keytool
+          keystore:
+            location: classpath:keystore.p12
+            password: changeit
+            type: PKCS12       # ← обязательно указывать для .p12
+          # key-password: changeit   # ← если пароль на ключ отличается от store-пароля
+
   sql:
     init:
       mode: always
@@ -12,11 +24,10 @@ jwt:
 server:
   http2:
     enabled: true
-  ssl:
-    key-store: /home/akosarev/tmp/ssl/keystore/localhost.p12
-    key-store-password: password
-    key-alias: localhost
   port: 8443
+  ssl:
+    enabled: true
+    bundle: "server"  # ← указываем имя SSL bundle
 logging:
   level:
     org.springframework.security: trace

@@ -43,7 +43,7 @@ public class AccessTokenJwsStringSerializer implements Function<Token, String> {
                 .build();
         var signedJWT = new SignedJWT(jwsHeader, claimsSet);
         try {
-            signedJWT.sign(this.jwsSigner);
+            signedJWT.sign(jwsSigner);
 
             return signedJWT.serialize();
         } catch (JOSEException exception) {

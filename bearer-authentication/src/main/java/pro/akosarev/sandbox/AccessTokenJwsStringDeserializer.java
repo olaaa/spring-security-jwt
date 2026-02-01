@@ -23,10 +23,12 @@ public class AccessTokenJwsStringDeserializer implements Function<String, Token>
 
     @Override
     public Token apply(String string) {
+        // Parses and verifies signed JWT; extracts token attributes
         try {
             var signedJWT = SignedJWT.parse(string);
             if (signedJWT.verify(this.jwsVerifier)) {
                 var claimsSet = signedJWT.getJWTClaimsSet();
+                // Extracts token attributes from claims
                 return new Token(UUID.fromString(claimsSet.getJWTID()), claimsSet.getSubject(),
                         claimsSet.getStringListClaim("authorities"),
                         claimsSet.getIssueTime().toInstant(),

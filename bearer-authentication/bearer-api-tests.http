@@ -1,0 +1,332 @@
+### ============================================
+### JWT Bearer Authentication API Tests
+### Модуль: bearer-authentication
+### ============================================
+
+### === НАСТРОЙКИ ===
+@baseUrl = https://localhost:8443
+@username = j.jameson
+@password = password
+
+### ============================================
+### 1. Получение JWT токенов (Access + Refresh)
+###    Используется Basic Authentication
+### ============================================
+POST {{baseUrl}}/jwt/tokens
+Authorization: Basic {{username}} {{password}}
+
+> {%
+    client.test("Tokens issued successfully", function() {
+        client.assert(response.status === 200, "Token request failed with status: " + response.status);
+    });
+
+    client.test("Response contains access token", function() {
+        var json = response.body;
+        client.assert(json.accessToken !== undefined, "Access token is missing");
+        client.assert(json.accessTokenExpiry !== undefined, "Access token expiry is missing");
+        client.log("✓ Access token: " + json.accessToken.substring(0, 50) + "...");
+    });
+
+    client.test("Response contains refresh token", function() {
+        var json = response.body;
+        client.assert(json.refreshToken !== undefined, "Refresh token is missing");
+        client.assert(json.refreshTokenExpiry !== undefined, "Refresh token expiry is missing");
+        client.log("✓ Refresh token: " + json.refreshToken.substring(0, 50) + "...");
+    });
+
+    // Сохраняем токены для последующих запросов
+    if (response.body.accessToken) {
+        client.global.set("access_token", response.body.accessToken);
+        client.global.set("access_token_expiry", response.body.accessTokenExpiry);
+        client.log("✓ Access token сохранен, истекает: " + response.body.accessTokenExpiry);
+    }
+
+    if (response.body.refreshToken) {
+        client.global.set("refresh_token", response.body.refreshToken);
+        client.global.set("refresh_token_expiry", response.body.refreshTokenExpiry);
+        client.log("✓ Refresh token сохранен, истекает: " + response.body.refreshTokenExpiry);
+    }
+%}
+
+### ============================================
+### 2. Доступ к защищенному ресурсу с Access Token
+###    Используется заголовок Authorization: Bearer
+### ============================================
+GET {{baseUrl}}/manager.html
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Access with valid token successful", function() {
+        client.assert(response.status === 200, "Access denied with status: " + response.status);
+    });
+
+    client.test("Manager page content received", function() {
+        var content = response.body;
+        client.assert(content.includes("Привет, менеджер!"), "Expected manager page content");
+        client.log("✓ Доступ к защищенной странице получен");
+    });
+%}
+
+### ============================================
+### 3. Обновление Access Token с помощью Refresh Token
+###    POST /jwt/refresh с Bearer Refresh Token
+### ============================================
+POST {{baseUrl}}/jwt/refresh
+Authorization: Bearer {{refresh_token}}
+
+> {%
+    client.test("Token refresh successful", function() {
+        client.assert(response.status === 200, "Token refresh failed with status: " + response.status);
+    });
+
+    client.test("New access token received", function() {
+        var json = response.body;
+        client.assert(json.accessToken !== undefined, "New access token is missing");
+        client.assert(json.accessTokenExpiry !== undefined, "New access token expiry is missing");
+        client.assert(json.refreshToken === null || json.refreshToken === undefined,
+            "Refresh token should not be re-issued");
+        client.log("✓ Новый access token получен");
+    });
+
+    // Обновляем сохраненный access token
+    if (response.body.accessToken) {
+        client.global.set("access_token", response.body.accessToken);
+        client.global.set("access_token_expiry", response.body.accessTokenExpiry);
+        client.log("✓ Access token обновлен, истекает: " + response.body.accessTokenExpiry);
+    }
+%}
+
+### ============================================
+### 4. Проверка обновленного Access Token
+### ============================================
+GET {{baseUrl}}/manager.html
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Refreshed token works", function() {
+        client.assert(response.status === 200, "Access with refreshed token failed");
+        client.log("✓ Обновленный токен работает корректно");
+    });
+%}
+
+### ============================================
+### 5. Logout - деактивация Refresh Token
+###    Токен заносится в черный список (t_deactivated_token)
+### ============================================
+POST {{baseUrl}}/jwt/logout
+Authorization: Bearer {{refresh_token}}
+
+> {%
+    client.test("Logout successful", function() {
+        client.assert(response.status === 204, "Logout failed with status: " + response.status);
+    });
+
+    client.test("No content in response", function() {
+        client.assert(response.body === null || response.body === "",
+            "Expected no content in logout response");
+        client.log("✓ Logout выполнен успешно");
+    });
+%}
+
+### ============================================
+### 6. Попытка использовать деактивированный Refresh Token
+### ============================================
+POST {{baseUrl}}/jwt/refresh
+Authorization: Bearer {{refresh_token}}
+
+> {%
+    client.test("Deactivated token rejected", function() {
+        client.assert(response.status === 403 || response.status === 401,
+            "Expected 403/401, got: " + response.status);
+        client.log("✓ Деактивированный токен отклонен");
+    });
+%}
+
+### ============================================
+### === НЕГАТИВНЫЕ СЦЕНАРИИ ===
+### ============================================
+
+### ❌ Запрос токенов без аутентификации
+POST {{baseUrl}}/jwt/tokens
+
+> {%
+    client.test("Request denied without credentials", function() {
+        client.assert(response.status === 401, "Expected 401, got: " + response.status);
+    });
+%}
+
+### ❌ Запрос токенов с неверными учетными данными
+POST {{baseUrl}}/jwt/tokens
+Authorization: Basic invalid credentials
+
+> {%
+    client.test("Request denied with invalid credentials", function() {
+        client.assert(response.status === 401, "Expected 401, got: " + response.status);
+    });
+%}
+
+### ❌ Доступ к защищенному ресурсу без токена
+GET {{baseUrl}}/manager.html
+
+> {%
+    client.test("Access denied without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403, got: " + response.status);
+    });
+%}
+
+### ❌ Доступ с невалидным токеном
+GET {{baseUrl}}/manager.html
+Authorization: Bearer invalid.jwt.token
+
+> {%
+    client.test("Access denied with invalid token", function() {
+        client.assert(response.status === 403, "Expected 403, got: " + response.status);
+    });
+%}
+
+### ❌ Использование Access Token для refresh
+POST {{baseUrl}}/jwt/refresh
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Access token cannot refresh", function() {
+        client.assert(response.status === 403,
+            "Access token should not be allowed for refresh, got: " + response.status);
+        client.log("✓ Access токен правильно отклонен для refresh");
+    });
+%}
+
+### ❌ Использование Access Token для logout
+POST {{baseUrl}}/jwt/logout
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Access token cannot logout", function() {
+        client.assert(response.status === 403,
+            "Access token should not be allowed for logout, got: " + response.status);
+        client.log("✓ Access токен правильно отклонен для logout");
+    });
+%}
+
+### ❌ Refresh без токена
+POST {{baseUrl}}/jwt/refresh
+
+> {%
+    client.test("Refresh denied without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403, got: " + response.status);
+    });
+%}
+
+### ❌ Logout без токена
+POST {{baseUrl}}/jwt/logout
+
+> {%
+    client.test("Logout denied without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403, got: " + response.status);
+    });
+%}
+
+### ============================================
+### === ПОЛНЫЙ ЖИЗНЕННЫЙ ЦИКЛ ТОКЕНА ===
+### ============================================
+
+### Шаг 1: Получение новых токенов
+POST {{baseUrl}}/jwt/tokens
+Authorization: Basic {{username}} {{password}}
+
+> {%
+    if (response.body.accessToken) {
+        client.global.set("lifecycle_access_token", response.body.accessToken);
+        client.global.set("lifecycle_refresh_token", response.body.refreshToken);
+        client.log("✓ Lifecycle: Токены получены");
+    }
+%}
+
+### Шаг 2: Использование Access Token
+GET {{baseUrl}}/manager.html
+Authorization: Bearer {{lifecycle_access_token}}
+
+> {%
+    client.test("Lifecycle: Access token works", function() {
+        client.assert(response.status === 200, "Access failed");
+        client.log("✓ Lifecycle: Access токен работает");
+    });
+%}
+
+### Шаг 3: Обновление через Refresh Token
+POST {{baseUrl}}/jwt/refresh
+Authorization: Bearer {{lifecycle_refresh_token}}
+
+> {%
+    if (response.body.accessToken) {
+        client.global.set("lifecycle_access_token", response.body.accessToken);
+        client.log("✓ Lifecycle: Access токен обновлен");
+    }
+%}
+
+### Шаг 4: Использование нового Access Token
+GET {{baseUrl}}/manager.html
+Authorization: Bearer {{lifecycle_access_token}}
+
+> {%
+    client.test("Lifecycle: New access token works", function() {
+        client.assert(response.status === 200, "New access token failed");
+        client.log("✓ Lifecycle: Новый access токен работает");
+    });
+%}
+
+### Шаг 5: Logout (деактивация Refresh Token)
+POST {{baseUrl}}/jwt/logout
+Authorization: Bearer {{lifecycle_refresh_token}}
+
+> {%
+    client.test("Lifecycle: Logout successful", function() {
+        client.assert(response.status === 204, "Logout failed");
+        client.log("✓ Lifecycle: Logout выполнен");
+    });
+
+    // Очистка
+    client.global.clear("lifecycle_access_token");
+    client.global.clear("lifecycle_refresh_token");
+%}
+
+### ============================================
+### === ПРОВЕРКА СРОКА ДЕЙСТВИЯ ТОКЕНОВ ===
+### ============================================
+
+### Информация о сохраненных токенах
+# @name tokenInfo
+GET {{baseUrl}}/manager.html
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.log("=== ИНФОРМАЦИЯ О ТОКЕНАХ ===");
+    client.log("Access Token Expiry: " + client.global.get("access_token_expiry"));
+    client.log("Refresh Token Expiry: " + client.global.get("refresh_token_expiry"));
+
+    var accessExpiry = new Date(client.global.get("access_token_expiry"));
+    var refreshExpiry = new Date(client.global.get("refresh_token_expiry"));
+    var now = new Date();
+
+    client.log("Access токен истекает через: " +
+        Math.floor((accessExpiry - now) / 1000 / 60) + " минут");
+    client.log("Refresh токен истекает через: " +
+        Math.floor((refreshExpiry - now) / 1000 / 60 / 60) + " часов");
+%}
+
+### ============================================
+### ОЧИСТКА: Удаление всех сохраненных переменных
+### ============================================
+# @no-log
+GET {{baseUrl}}/manager.html
+
+> {%
+    client.global.clear("access_token");
+    client.global.clear("access_token_expiry");
+    client.global.clear("refresh_token");
+    client.global.clear("refresh_token_expiry");
+    client.log("✓ Все токены очищены");
+%}
