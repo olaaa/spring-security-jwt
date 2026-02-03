@@ -1,33 +1,50 @@
 package pro.akosarev.sandbox;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
 import org.springframework.security.web.authentication.AuthenticationFilter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 import java.util.function.Function;
 
-public class JwtAuthenticationConfigurer
-        extends AbstractHttpConfigurer<JwtAuthenticationConfigurer, HttpSecurity> {
+// AbstractHttpConfigurer используется для создания кастомных конфигураторов безопасности в Spring Security.
+public class JwtAuthenticationConfigurer extends AbstractHttpConfigurer<JwtAuthenticationConfigurer, HttpSecurity> {
 
-    private Function<Token, String> refreshTokenStringSerializer = Object::toString;
+    private Function<AccessToken, String> accessTokenStringSerializer;
 
-    private Function<Token, String> accessTokenStringSerializer = Object::toString;
+    private Function<RefreshToken, String> refreshTokenStringSerializer;
 
-    private Function<String, Token> accessTokenStringDeserializer;
+    private Function<String, AccessToken> accessTokenStringDeserializer;
 
-    private Function<String, Token> refreshTokenStringDeserializer;
+    private Function<String, RefreshToken> refreshTokenStringDeserializer;
 
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    UserDetailsService userDetailsService;
+
+//    добавляем адрес в исключение при обработке Csrf-фильтром
+    /**
+     * CSRF — защита для сценария с сессионной cookie, которую браузер добавляет сам.
+     * Тогда вредоносная страница может отправить POST, и cookie уйдёт автоматически.
+     * Поэтому сервер требует CSRF‑токен.
+     * В вашем случае авторизация идет через Authorization: Basic ... (для выдачи токенов)
+     * или Authorization: Bearer ... (для остальных запросов).
+     * Браузер сам этот заголовок не добавляет, его ставит только ваш клиент. Значит CSRF‑атака не сработает:
+     * без заголовка запрос не будет аутентифицирован.
+     */
     @Override
     public void init(HttpSecurity builder) {
         var csrfConfigurer = builder.getConfigurer(CsrfConfigurer.class);
@@ -43,22 +60,25 @@ public class JwtAuthenticationConfigurer
         requestJwtTokensFilter.setRefreshTokenStringSerializer(this.refreshTokenStringSerializer);
 
         var jwtAuthenticationFilter = new AuthenticationFilter(builder.getSharedObject(AuthenticationManager.class),
-                new JwtAuthenticationConverter(this.accessTokenStringDeserializer, this.refreshTokenStringDeserializer));
+                new JwtAuthenticationConverter(jdbcTemplate, this.accessTokenStringDeserializer, this.refreshTokenStringDeserializer));
         jwtAuthenticationFilter
                 .setSuccessHandler((request, response, authentication) -> CsrfFilter.skipRequest(request));
         jwtAuthenticationFilter
-                .setFailureHandler((request, response, exception) -> response.sendError(HttpServletResponse.SC_FORBIDDEN));
+                .setFailureHandler((request, response, exception)
+                        -> response.sendError(HttpServletResponse.SC_FORBIDDEN));
 
         var authenticationProvider = new PreAuthenticatedAuthenticationProvider();
+        var authenticationUserDetailsService = new TokenAuthenticationUserDetailsService(this.jdbcTemplate);
         authenticationProvider.setPreAuthenticatedUserDetailsService(
-                new TokenAuthenticationUserDetailsService(this.jdbcTemplate));
+                authenticationUserDetailsService);
 
-        var refreshTokenFilter = new RefreshTokenFilter();
+
+        var refreshTokenFilter = new RefreshTokenFilter(userDetailsService);
         refreshTokenFilter.setAccessTokenStringSerializer(this.accessTokenStringSerializer);
 
         var jwtLogoutFilter = new JwtLogoutFilter(this.jdbcTemplate);
 
-        builder.addFilterAfter(requestJwtTokensFilter, ExceptionTranslationFilter.class)
+        builder.addFilterAfter(requestJwtTokensFilter, BasicAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, CsrfFilter.class)
                 .addFilterAfter(refreshTokenFilter, ExceptionTranslationFilter.class)
                 .addFilterAfter(jwtLogoutFilter, ExceptionTranslationFilter.class)
@@ -66,25 +86,25 @@ public class JwtAuthenticationConfigurer
     }
 
     public JwtAuthenticationConfigurer refreshTokenStringSerializer(
-            Function<Token, String> refreshTokenStringSerializer) {
+            Function<RefreshToken, String> refreshTokenStringSerializer) {
         this.refreshTokenStringSerializer = refreshTokenStringSerializer;
         return this;
     }
 
     public JwtAuthenticationConfigurer accessTokenStringSerializer(
-            Function<Token, String> accessTokenStringSerializer) {
+            Function<AccessToken, String> accessTokenStringSerializer) {
         this.accessTokenStringSerializer = accessTokenStringSerializer;
         return this;
     }
 
     public JwtAuthenticationConfigurer accessTokenStringDeserializer(
-            Function<String, Token> accessTokenStringDeserializer) {
+            Function<String, AccessToken> accessTokenStringDeserializer) {
         this.accessTokenStringDeserializer = accessTokenStringDeserializer;
         return this;
     }
 
     public JwtAuthenticationConfigurer refreshTokenStringDeserializer(
-            Function<String, Token> refreshTokenStringDeserializer) {
+            Function<String, RefreshToken> refreshTokenStringDeserializer) {
         this.refreshTokenStringDeserializer = refreshTokenStringDeserializer;
         return this;
     }

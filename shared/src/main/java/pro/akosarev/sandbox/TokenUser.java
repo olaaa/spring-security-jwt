@@ -7,19 +7,22 @@ import java.util.Collection;
 
 public class TokenUser extends User {
 
-    private final Token token;
+    private final RefreshToken refreshToken;
 
-    public TokenUser(String username, String password, Collection<? extends GrantedAuthority> authorities, Token token) {
+    public TokenUser(String username, String password, Collection<? extends GrantedAuthority> authorities, 
+                     RefreshToken refreshToken) {
         super(username, password, authorities);
-        this.token = token;
+        this.refreshToken = refreshToken;
     }
 
-    public TokenUser(String username, String password, boolean enabled, boolean accountNonExpired, boolean credentialsNonExpired, boolean accountNonLocked, Collection<? extends GrantedAuthority> authorities, Token token) {
+    public TokenUser(String username, String password, boolean enabled, boolean accountNonExpired, 
+                     boolean credentialsNonExpired, boolean accountNonLocked, 
+                     Collection<? extends GrantedAuthority> authorities, RefreshToken refreshToken) {
         super(username, password, enabled, accountNonExpired, credentialsNonExpired, accountNonLocked, authorities);
-        this.token = token;
+        this.refreshToken = refreshToken;
     }
 
-    public Token getToken() {
-        return token;
+    public RefreshToken getRefreshToken() {
+        return refreshToken;
     }
 }

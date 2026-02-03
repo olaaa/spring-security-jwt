@@ -10,7 +10,7 @@ import java.text.ParseException;
 import java.util.UUID;
 import java.util.function.Function;
 
-public class RefreshTokenJweStringDeserializer implements Function<String, Token> {
+public class RefreshTokenJweStringDeserializer implements Function<String, RefreshToken> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RefreshTokenJweStringDeserializer.class);
 
@@ -21,13 +21,12 @@ public class RefreshTokenJweStringDeserializer implements Function<String, Token
     }
 
     @Override
-    public Token apply(String string) {
+    public RefreshToken apply(String string) {
         try {
             var encryptedJWT = EncryptedJWT.parse(string);
             encryptedJWT.decrypt(this.jweDecrypter);
             var claimsSet = encryptedJWT.getJWTClaimsSet();
-            return new Token(UUID.fromString(claimsSet.getJWTID()), claimsSet.getSubject(),
-                    claimsSet.getStringListClaim("authorities"),
+            return new RefreshToken(UUID.fromString(claimsSet.getJWTID()), claimsSet.getSubject(),
                     claimsSet.getIssueTime().toInstant(),
                     claimsSet.getExpirationTime().toInstant());
         } catch (ParseException | JOSEException exception) {

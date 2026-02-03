@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Date;
 import java.util.function.Function;
 
-public class AccessTokenJwsStringSerializer implements Function<Token, String> {
+public class  AccessTokenJwsStringSerializer implements Function<AccessToken, String> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AccessTokenJwsStringSerializer.class);
 
@@ -30,15 +30,18 @@ public class AccessTokenJwsStringSerializer implements Function<Token, String> {
     }
 
     @Override
-    public String apply(Token token) {
+    public String apply(AccessToken token) {
+//        заголовок jwt. Заголовки никогда не кодируются и не шифруются
         var jwsHeader = new JWSHeader.Builder(this.jwsAlgorithm)
                 .keyID(token.id().toString())
                 .build();
+//        полезная нагрузка токена
         var claimsSet = new JWTClaimsSet.Builder()
                 .jwtID(token.id().toString())
                 .subject(token.subject())
                 .issueTime(Date.from(token.createdAt()))
                 .expirationTime(Date.from(token.expiresAt()))
+//  права, которые выдаются этим токеном. Создаем кастомный клейм
                 .claim("authorities", token.authorities())
                 .build();
         var signedJWT = new SignedJWT(jwsHeader, claimsSet);

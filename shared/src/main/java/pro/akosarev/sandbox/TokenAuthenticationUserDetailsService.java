@@ -21,18 +21,37 @@ public class TokenAuthenticationUserDetailsService
     @Override
     public UserDetails loadUserDetails(PreAuthenticatedAuthenticationToken authenticationToken)
             throws UsernameNotFoundException {
-        if (authenticationToken.getPrincipal() instanceof Token token) {
-            return new TokenUser(token.subject(), "nopassword", true, true,
+        // Обработка RefreshToken
+        if (authenticationToken.getPrincipal() instanceof RefreshToken refreshToken) {
+            return new TokenUser(refreshToken.subject(), "nopassword", true, true,
                     !this.jdbcTemplate.queryForObject("""
                             select exists(select id from t_deactivated_token where id = ?)
-                            """, Boolean.class, token.id()) &&
-                            token.expiresAt().isAfter(Instant.now()),
+                            """, Boolean.class, refreshToken.id()) &&
+                    refreshToken.expiresAt().isAfter(Instant.now()),
                     true,
-                    token.authorities().stream()
-                            .map(SimpleGrantedAuthority::new)
-                            .toList(), token);
+                    null, // RefreshToken не содержит authorities
+                    refreshToken);
         }
 
-        throw new UsernameNotFoundException("Principal must me of type Token");
+        // Обработка AccessToken
+        if (authenticationToken.getPrincipal() instanceof AccessToken accessToken) {
+            return new TokenUser(accessToken.subject(), "nopassword", true, true,
+                    !this.jdbcTemplate.queryForObject("""
+                            select exists(select id from t_deactivated_token where id = ?)
+                            """, Boolean.class, accessToken.id()) &&
+                    accessToken.expiresAt().isAfter(Instant.now()),
+                    true,
+                    accessToken.authorities().stream()
+                            .map(SimpleGrantedAuthority::new)
+                            .toList(),
+                    null); // AccessToken не нуждается в RefreshToken
+        }
+
+        // Обработка уже построенного TokenUser (из JwtAuthenticationConverter)
+        if (authenticationToken.getPrincipal() instanceof TokenUser tokenUser) {
+            return tokenUser;
+        }
+
+        throw new UsernameNotFoundException("Principal must be of type RefreshToken or AccessToken");
     }
 }

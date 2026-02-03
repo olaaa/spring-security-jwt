@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -33,11 +32,10 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
             if (this.securityContextRepository.containsContext(request)) {
                 var context = this.securityContextRepository.loadDeferredContext(request).get();
                 if (context != null && context.getAuthentication() instanceof PreAuthenticatedAuthenticationToken &&
-                        context.getAuthentication().getPrincipal() instanceof TokenUser user &&
-                        context.getAuthentication().getAuthorities()
-                                .contains(new SimpleGrantedAuthority("JWT_LOGOUT"))) {
+                    context.getAuthentication().getPrincipal() instanceof TokenUser user) {
+                    // Деактивируем Refresh Token
                     this.jdbcTemplate.update("insert into t_deactivated_token (id, c_keep_until) values (?, ?)",
-                            user.getToken().id(), Date.from(user.getToken().expiresAt()));
+                            user.getRefreshToken().id(), Date.from(user.getRefreshToken().expiresAt()));
 
                     response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                     return;
