@@ -5,6 +5,9 @@ import org.springframework.security.core.userdetails.User;
 
 import java.util.Collection;
 
+/**
+ * Наследник превносит одно новое поле refreshToken
+ */
 public class TokenUser extends User {
 
     private final RefreshToken refreshToken;

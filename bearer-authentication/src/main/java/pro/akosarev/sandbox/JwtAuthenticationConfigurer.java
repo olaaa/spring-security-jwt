@@ -53,19 +53,27 @@ public class JwtAuthenticationConfigurer extends AbstractHttpConfigurer<JwtAuthe
         }
     }
 
+    /**
+     * Configures authentication pipeline with JWT and refresh tokens
+     */
     @Override
     public void configure(HttpSecurity builder) {
         var requestJwtTokensFilter = new RequestJwtTokensFilter();
         requestJwtTokensFilter.setAccessTokenStringSerializer(this.accessTokenStringSerializer);
         requestJwtTokensFilter.setRefreshTokenStringSerializer(this.refreshTokenStringSerializer);
 
+        // создаем новый фильтр
         var jwtAuthenticationFilter = new AuthenticationFilter(builder.getSharedObject(AuthenticationManager.class),
                 new JwtAuthenticationConverter(jdbcTemplate, this.accessTokenStringDeserializer, this.refreshTokenStringDeserializer));
         jwtAuthenticationFilter
-                .setSuccessHandler((request, response, authentication) -> CsrfFilter.skipRequest(request));
+//        При успехе: пропускает CSRF-проверку для данного запроса, так как куки при аутентификации не используются
+//        Поведение по умолчнию было бы отправить на index.html
+                .setSuccessHandler((request, response, authentication)
+                        -> CsrfFilter.skipRequest(request));
+//        по умолчанию редиректил бы на форму логина
         jwtAuthenticationFilter
                 .setFailureHandler((request, response, exception)
-                        -> response.sendError(HttpServletResponse.SC_FORBIDDEN));
+                        -> response.sendError(HttpServletResponse.SC_FORBIDDEN)); // 403
 
         var authenticationProvider = new PreAuthenticatedAuthenticationProvider();
         var authenticationUserDetailsService = new TokenAuthenticationUserDetailsService(this.jdbcTemplate);
@@ -79,6 +87,7 @@ public class JwtAuthenticationConfigurer extends AbstractHttpConfigurer<JwtAuthe
         var jwtLogoutFilter = new JwtLogoutFilter(this.jdbcTemplate);
 
         builder.addFilterAfter(requestJwtTokensFilter, BasicAuthenticationFilter.class)
+//                обязательно до CsrfFilter
                 .addFilterBefore(jwtAuthenticationFilter, CsrfFilter.class)
                 .addFilterAfter(refreshTokenFilter, ExceptionTranslationFilter.class)
                 .addFilterAfter(jwtLogoutFilter, ExceptionTranslationFilter.class)

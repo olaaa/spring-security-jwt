@@ -9,6 +9,16 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
 
 import java.time.Instant;
 
+/**
+ * Практическое значение:
+ * Этот класс становится поставщиком данных пользователя для Spring Security.
+ * Когда система получает токен аутентификации, она вызывает метод loadUserDetails(), который:
+ *   Проверяет тип токена (RefreshToken, AccessToken или TokenUser)
+ *   Загружает информацию о пользователе
+ *   Проверяет, не деактивирован ли токен в БД
+ *   Возвращает объект UserDetails с правами доступа
+ * Это контракт - Spring Security знает, что может вызвать этот метод для получения данных пользователя по токену.
+ **/
 public class TokenAuthenticationUserDetailsService
         implements AuthenticationUserDetailsService<PreAuthenticatedAuthenticationToken> {
 
